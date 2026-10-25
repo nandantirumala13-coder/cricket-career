@@ -1,0 +1,801 @@
+import pygame
+import random
+import math
+import sys
+
+
+pygame.init()
+
+
+
+WIDTH, HEIGHT = 1000, 650
+FPS = 60
+MAX_OVERS = 2
+
+
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Cricket Career Simulator")
+clock = pygame.time.Clock()
+
+
+
+FONT = pygame.font.SysFont("Arial", 22)
+SMALL = pygame.font.SysFont("Arial", 16)
+BIG = pygame.font.SysFont("Arial", 42, bold=True)
+TITLE = pygame.font.SysFont("Arial", 52, bold=True)
+
+
+
+WHITE = (255, 255, 255)
+BLACK = (25, 30, 28)
+GREEN = (35, 125, 55)
+DARK_GREEN = (20, 75, 38)
+LIGHT_GREEN = (60, 145, 65)
+PITCH = (190, 155, 105)
+CREAM = (245, 225, 180)
+BLUE = (40, 100, 220)
+RED = (205, 55, 55)
+GOLD = (255, 205, 65)
+SKIN = (195, 145, 105)
+
+
+
+BATTER_X = 690
+BATTER_Y = 345
+KEEPER_X = 835
+STUMPS_X = 720
+BOWLER_X = 190
+BALL_SPEED = 390
+
+
+
+state = "menu"
+mode = "batting"
+
+
+runs = 0
+wickets = 0
+legal_balls = 0
+extras = 0
+boundaries = 0
+catches = 0
+stumpings = 0
+missed_balls = 0
+
+
+ball_x = BOWLER_X
+ball_y = 320
+ball_target_y = 320
+ball_active = False
+delivery_type = "normal"
+delivery_start_x = BOWLER_X 
+
+
+keeper_y = 340
+keeper_diving = 0
+keeper_dive_y = 0
+
+
+shot_type = 2
+shot_requested = False
+delivery_resolved = False
+message = ""
+message_time = 0
+last_delivery_time = 0
+
+
+
+
+
+def text(value, x, y, font=FONT, colour=WHITE, center=False):
+    image = font.render(str (value), True, colour)
+    rect = image.get_rect()
+
+
+    if center:
+        rect.center = (x, y)
+    else:
+        rect.topleft = (x, y)
+
+
+    screen.blit(image, rect)
+
+
+def draw_stumps(x, y):
+    for offset in (-9, 0, 9):
+        pygame.draw.rect(
+            screen, CREAM,
+            (int(x + offset), int(y - 28), 4, 30)
+        )
+
+    pygame.draw.rect(
+        screen, CREAM,
+        (int(x - 12), int(y - 30), 26, 3)
+    )
+
+
+def draw_player(x, y, colour, batting=False,
+                keeping=False, diving=0):
+    """Draw a simple player with moving legs."""
+
+
+    tick = pygame.time.get_ticks()
+    leg_move = math.sin(tick * 0.012) * 4
+
+
+    pygame.draw.circle(
+        screen, SKIN, (int(x), int(y - 48)), 12
+    )
+
+
+
+    pygame.draw.arc(
+        screen, colour,
+        (int(x - 13), int(y - 62), 26, 22),
+        0, math.pi, 4
+    )
+
+
+
+    pygame.draw.rect(
+        screen, colour,
+        (int(x - 13), int(y - 36), 26, 35),
+        border_radius=5
+    )
+
+
+
+    pygame.draw.line(
+        screen, WHITE,
+        (x - 6, y - 2),
+        (x - 12 + leg_move, y + 22), 6
+    )
+    pygame.draw.line(
+        screen, WHITE,
+        (x + 6, y - 2),
+        (x + 12 - leg_move, y + 22), 6
+    )
+
+
+    if batting:
+
+        pygame.draw.line(
+            screen, SKIN,
+            (x - 10, y - 28),
+            (x - 23, y - 8), 6
+        )
+        pygame.draw.line(
+            screen, SKIN,
+            (x + 10, y - 28),
+            (x - 17, y - 10), 6
+        )
+        pygame.draw.line(
+            screen, SKIN,
+            (x -20, y - 10),
+            (x - 34, y + 35), 9
+        )
+
+
+    elif keeping:
+
+        glove_y = y - 15 + diving
+
+
+        pygame.draw.line(
+            screen, SKIN,
+            (x - 10, y - 28),
+            (x - 18, glove_y), 6
+        )
+        pygame.draw.line(
+            screen, SKIN,
+            (x + 10, y - 28),
+            (x + 18, glove_y), 6
+        )
+
+
+        pygame.draw.circle(
+            screen, GOLD, (int(x - 18), int(glove_y)), 9
+        )
+        pygame.draw.circle(
+            screen, GOLD, (int(x + 18), int(glove_y)), 9
+        )
+
+    else:
+
+        pygame.draw.line(
+            screen, SKIN,
+            (x - 10, y - 28),
+            (x - 22, y - 5), 6
+        )
+        pygame.draw.line(
+            screen, SKIN,
+            (x + 10, y - 28),
+            (x + 22, y - 7), 6
+        )
+
+
+
+
+def draw_ground():
+    screen.fill(GREEN)
+
+
+
+    for x in range(0, WIDTH, 100):
+        pygame.draw.rect(
+            screen, LIGHT_GREEN,
+            (x + 100, 50, 100, HEIGHT - 100)
+        )
+
+
+
+    pygame.draw.ellipse(
+        screen, WHITE,
+        (35, 115, WIDTH - 70, 480), 3
+    )
+
+
+    pygame.draw.rect(
+        screen, PITCH,
+        (130, 260, 700, 155),
+        border_radius=8
+    )
+
+
+
+    pygame.draw.line(
+        screen, WHITE,
+        (790, 270), (790, 405), 3
+    )
+
+
+    pygame.draw.line(
+        screen, CREAM,
+        (160, 337), (790, 337), 1
+    )
+
+
+
+
+def draw_scoreboard():
+    pygame.draw.rect(screen, BLACK, (0, 0, WIDTH, 100))
+
+
+    text("CRICKET CAREER", 20, 8, SMALL, GOLD)
+    text(f"{runs}/{wickets}", 20, 28, BIG)
+
+
+    overs = f"{legal_balls // 6}.{legal_balls % 6}"
+    text(f"Overs: {overs}/{MAX_OVERS}", 235, 43)
+    text(f"Extras: {extras}", 450, 43)
+    text(f"Mode: {mode.title()}", 720, 43, FONT, GOLD)
+
+
+    if mode == "batting":
+        text(
+            "1 Defensive    2 Normal    3 Attack    SPACE: shot",
+            20, 75, SMALL
+        )
+    else:
+        text(
+            "UP/DOWN: move keeper   SPACE: dive/catch",
+            20, 75, SMALL
+        )
+
+
+
+
+def draw_match():
+    draw_ground()
+    draw_scoreboard()
+
+
+
+    draw_player(BOWLER_X, 345, RED)
+    text("BOWLER", BOWLER_X - 35, 380, SMALL)
+
+
+    draw_player(
+        BATTER_X, BATTER_Y, BLUE, batting=True
+    )
+    draw_stumps(STUMPS_X, BATTER_Y)
+    text("BATTER", BATTER_X - 35, 395, SMALL)
+
+
+
+    draw_player(
+        KEEPER_X, keeper_y, RED,
+        keeping=True, diving=keeper_dive_y
+    )
+    text("KEEPER", KEEPER_X - 38, 395, SMALL)
+
+
+    if ball_active:
+        pygame.draw.circle(
+            screen, RED,
+            (int(ball_x), int(ball_y)), 8
+        )
+        pygame.draw.circle(
+            screen, WHITE,
+            (int(ball_x - 2), int(ball_y -2)), 2
+        )
+
+
+
+    if mode == "batting" and ball_active:
+        pygame.draw.line(
+            screen, GOLD,
+            (BATTER_X - 50, 420),
+            (BATTER_X + 15, 420), 4
+        )
+
+
+    text(
+        message, WIDTH // 2, 520,
+        FONT, GOLD, center=True
+    )
+
+
+
+def draw_menu():
+    screen.fill(DARK_GREEN)
+
+
+    pygame.draw.rect(
+        screen, GREEN, (0, 390, WIDTH, 260)
+    )
+    pygame.draw.ellipse(
+        screen, LIGHT_GREEN, (100, 350, 800, 260)
+    )
+    pygame.draw.rect(
+        screen, PITCH, (350, 390, 300, 100)
+    )
+
+
+    draw_stumps(380, 450)
+    draw_stumps(620, 450)
+
+
+    draw_player(445, 445, BLUE, batting=True)
+    draw_player(570, 445, RED, keeping=True)
+
+
+    text(
+        "CRICKET CAREER", WIDTH // 2, 105,
+        TITLE, GOLD, center=True
+    )
+    text(
+        "YOUR CRICKET JOURNEY STARTS HERE",
+        WIDTH // 2, 165, FONT, WHITE, center=True
+    )
+
+
+    pygame.draw.rect(
+        screen, BLUE, (290, 230, 420, 55),
+        border_radius=12
+    )
+    text(
+        "1 - PLAY AS A BATTER", 
+        WIDTH // 2, 257, FONT, WHITE, center=True
+    )
+
+
+    pygame.draw.rect(
+        screen, RED, (290, 305, 420, 55),
+        border_radius=12
+    )
+    text(
+        "2 - PLAY AS A WICKETKEEPER",
+        WIDTH // 2, 332, FONT, WHITE, center=True
+    )
+
+
+    text(
+        "ESC: quit",
+        WIDTH // 2, 570, SMALL, WHITE, center=True
+    )
+
+
+
+def draw_summary():
+    screen.fill(DARK_GREEN)
+
+
+    text(
+        "INNINGS COMPLETE", WIDTH // 2, 100,
+        TITLE, GOLD, center=True
+    )
+    text(
+        f"Final Score: {runs}/{wickets}",
+        WIDTH // 2, 205, BIG, WHITE, center=True
+    )
+
+
+    text(
+        f"Overs: {legal_balls // 6}.{legal_balls % 6}",
+        WIDTH // 2, 310, FONT, WHITE, center=True
+    )
+
+
+    if mode == "batting":
+        text(
+            "BATTING REPORT", 
+            WIDTH // 2, 370, FONT, GOLD, center=True
+        )
+        text(
+            "Improve your timing to score more runs.",
+            WIDTH // 2, 410, SMALL, WHITE, center=True
+        )
+    else:
+        text(
+            "KEEPING REPORT",
+            WIDTH // 2, 370, FONT, GOLD, center=True
+        )
+        text(
+            f"Catches: {catches}    Stumpings: {stumpings}",
+            WIDTH // 2, 410, SMALL, WHITE, center=True
+        )
+        text(
+            f"Missed balls: {missed_balls}",
+            WIDTH // 2, 440, SMALL, WHITE, center=True
+        )
+
+
+    text(
+        "R: replay  M: main menu    ESC: quit",
+        WIDTH // 2, 540, FONT, WHITE, center=True
+    )
+
+
+
+
+
+
+
+def start_game(selected_mode):
+    global state, mode, runs, wickets, legal_balls
+    global extras, boundaries, catches, stumpings
+    global missed_balls, keeper_y
+
+
+    state = "playing"
+    mode = selected_mode
+
+
+    runs = 0
+    wickets = 0
+    legal_balls = 0
+    extras = 0
+    boundaries = 0
+    catches = 0
+    stumpings = 0
+    missed_balls = 0
+
+
+    keeper_y = 340
+    new_delivery()
+
+
+
+
+def new_delivery():
+    global ball_x, ball_y, ball_target_y
+    global ball_active, delivery_type
+    global shot_requested, delivery_resolved
+    global message, keeper_diving, keeper_dive_y
+
+
+    ball_x = BOWLER_X + 20
+    ball_y = random.choice([300, 320, 350]) 
+    ball_target_y = random.choice([285, 320, 360])
+
+
+    delivery_type = random.choices(
+        ["normal", "wide", "no_ball", "bouncer"],
+        weights=[83, 7, 4, 6]
+    )[0]
+
+
+    shot_requested = False
+    delivery_resolved = False
+    ball_active = True
+    keeper_diving = 0
+    keeper_dive_y = 0
+    message = ""
+
+
+
+
+def finish_delivery(result, legal=True, score=0, wicket=False):
+    global runs, wickets, legal_balls, extras
+    global boundaries, ball_active, message
+    global message_time, state
+
+
+    runs += score
+
+
+    if score in (4, 6):
+        boundaries += 1
+
+
+    if wicket:
+        wickets+= 1
+
+
+    if legal:
+        legal_balls += 1
+
+
+    ball_active = False
+    message = result
+    message_time = pygame.time.get_ticks()
+
+
+    if wickets >= 10 or legal_balls >= MAX_OVERS * 6:
+        state = "summary"
+
+
+
+
+def resolve_batting():
+    global delivery_resolved, extras
+
+
+    if delivery_resolved:
+        return
+
+
+    delivery_resolved = True
+
+
+
+    if delivery_type == "wide":
+        extras += 1
+        finish_delivery("WIDE! +1 EXTRA", legal=False, score=1)
+        return
+
+
+    if delivery_type == "no_ball":
+        extras += 1
+        finish_delivery("NO BALL! +1 EXTRA", legal=False, score=1)
+        return
+
+
+
+    distance = abs(ball_x - BATTER_X)
+    timing = max(0, 100 - distance * 1.5)
+    timing += random.randint(-10, 10)
+
+
+    if not shot_requested:
+        if random.random() < 0.12:
+            finish_delivery("BOWLED! YOU MISSED IT.", wicket=True)
+        else:
+            finish_delivery("DOT BALL.")
+        return
+
+
+
+    if shot_type == 3:
+        if timing < 35:
+            if random.random() < 0.35:
+                finish_delivery("CAUGHT! MISTIMED SHOT.", wicket=True)
+            else:
+                finish_delivery("BEATEN! DOT BALL.")
+            return
+
+
+        outcome = random.choices(
+            [0, 1, 2, 3, 4, 5, 6, "wicket"],
+            weights=[10, 12, 18, 5, 25, 5, 15, 10]
+        )[0]
+
+
+    else:
+
+        if timing < 20:
+            if random.random() < 0.20:
+                finish_delivery("BOWLED!", wicket=True)
+            else:
+                finish_delivery("BEATEN. DOT BALL")
+            return
+
+
+        outcome = random.choices(
+            [0, 1, 2, 3, 4, 5, 6, "wicket"],
+            weights=[20, 28, 20, 4, 17, 5, 6, 0]
+        )[0]
+
+
+    if outcome == "wicket":
+        finish_delivery("CAUGHT! YOU ARE OUT.", wicket=True)
+    else:
+        finish_delivery(f"{outcome} RUN(s)!", score=outcome)
+
+
+
+
+def resolve_keeping():
+    global delivery_resolved, catches, stumpings
+    global missed_balls, extras
+
+
+    if delivery_resolved:
+        return
+
+
+    delivery_resolved = True
+
+
+    distance = abs(ball_y - keeper_y)
+    dived = keeper_diving > 0
+
+
+
+    if distance < 25 or (dived and distance < 65):
+        if random.random() < 0.18:
+            catches += 1
+            finish_delivery("CAUGHT BEHIND! WICKET!", wicket=True)
+        elif random.random() < 0.08:
+            stumpings += 1
+            finish_delivery("STUMPED! WICKET.", wicket = True)
+        else:
+            finish_delivery("CLEAN COLLECTION. DOT BALL.")
+    else:
+        missed_balls += 1
+        extras += 1 
+        finish_delivery("MISSED! +1 BYE.", score=1)
+
+
+
+
+
+running = True
+
+
+while running:
+    dt = clock.tick(FPS) / 1000
+    now = pygame.time.get_ticks()
+
+
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+
+
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_ESCAPE:
+                running = False
+
+
+            if state == "menu":
+                if event.key == pygame.K_1:
+                    start_game("batting")
+                elif event.key == pygame.K_2:
+                    start_game("keeping")
+
+
+            elif state == "playing":
+                if mode == "batting":
+                    if event.key == pygame.K_1:
+                        shot_type = 1
+                    elif event.key == pygame.K_2:
+                        shot_type = 2
+                    elif event.key == pygame.K_3:
+                        shot_type = 3
+                    elif event.key == pygame.K_SPACE and ball_active:
+                        shot_requested = True
+
+
+                else:
+                    if event.key == pygame.K_UP:
+                        keeper_y -= 25
+                    elif event.key == pygame.K_DOWN:
+                        keeper_y += 25
+                    elif event.key == pygame.K_SPACE and ball_active:
+                        keeper_diving = 15
+
+                        keeper_dive_y = (
+                            -18 if ball_y < keeper_y else 18
+                        )
+                        keeper_y += keeper_dive_y
+
+
+            elif state == "summary":
+                if event.key == pygame.K_r:
+                    start_game(mode)
+                elif event.key == pygame.K_m:
+                    state = "menu"
+
+
+    if state == "playing":
+        keeper_y = max(275, min(405, keeper_y))
+
+
+        if keeper_diving > 0:
+            keeper_diving -= 1
+
+
+        if ball_active:
+            ball_x += BALL_SPEED * dt    
+
+
+
+            ball_y += (
+                ball_target_y - ball_y
+            ) * min(1, dt * 2.5)
+
+
+            if mode == "batting":
+
+                if ball_x >= BATTER_X:
+                    resolve_batting()
+
+
+            else:
+
+                if ball_x >= KEEPER_X:
+                    resolve_keeping()
+
+
+
+            if ball_active and ball_x > WIDTH:
+                if mode == "keeping":
+                    missed_balls += 1
+                    extras += 1
+                    finish_delivery("MISSED! +1 BYE.", score=1)
+                else:
+                    finish_delivery("DOT BALL.")
+
+
+        elif state == "playing":
+            if now - message_time > 1000:
+                new_delivery()
+
+
+
+    if state == "menu":
+        draw_menu()
+    elif state == "playing":
+        draw_match()
+    elif state == "summary":
+        draw_summary()
+
+
+    pygame.display.flip()
+
+
+pygame.quit()
+sys.exit()
+
+
+
+                
+
+
+        
+            
+
+
+            
+        
+
+
+
+
+
+
+
+
+
+
+
+
+            
+        
+
+
+
+
+    
